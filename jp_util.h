@@ -1,9 +1,14 @@
 #ifndef JPUTIL 
 #define JPUTIL
 
+#include <linux/if_ether.h>
+#include <net/ethernet.h>
+#include <netinet/in.h>
 #include <stdint.h>
 #include <netinet/ip6.h>
 #include <netinet/icmp6.h>
+#include <netinet/ether.h>
+#include <netinet/if_ether.h>
 
 typedef struct {
   uint16_t x; 
@@ -24,15 +29,14 @@ typedef struct {
   char data[8]; 
 } icmp_packet;
 
-typedef struct{
+typedef struct __attribute__((packed)) {
   struct ip6_hdr hdr;
   icmp_packet icmp; 
 } ipv6_packet;
 
-typedef struct {
-  uint32_t up_len; 
-  uint8_t next;
-  uint8_t padding[3];
+typedef struct __attribute__((packed)) {
+  uint16_t up_len; 
+  uint8_t rest[4];
 }  icmpv6_pheader;
 
 typedef union {
@@ -46,11 +50,22 @@ typedef struct {
   unsigned char b;
 } imgColorData;
 
-uint32_t intermediate_checksum(uint16_t * data, uint16_t len);
+typedef struct __attribute__((packed)) {
+  struct ether_header ethernet;
+  struct ip6_hdr ipv6; 
+  icmp_packet icmp; 
+} eth_packet;
+
+typedef struct {
+  struct sockaddr_in6 ip6; 
+  uint8_t eth[ETH_ALEN]; 
+} eth_ip6;
+
 void icmpv6_add_checksum(icmp_packet * restrict header, 
                                     const struct in6_addr * restrict src, 
                                     const struct in6_addr * restrict dest);
 struct sockaddr_in6 find_own_ipv6addr(const char * ifname);
+eth_ip6 find_own_mac_and_ip6(const char * ifname);
 void DumpHex(const void* data, size_t size);
 
 #endif 

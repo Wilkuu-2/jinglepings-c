@@ -47,16 +47,15 @@ int main(int argc, char ** argv){
 
   struct sockaddr_in6 src_sa = find_own_ipv6addr(argv[1]);
 
-
   in6_jpaddr jp_dest = {
     0x00A0081910060120,
     {
-      htons(0xd7a1), 
-      htons(0xce01), 
-      0xdb,
-      0xb2,
-      0xb4,
-      0x4a
+      htons(0xcdab), 
+      htons(0x3412), 
+      0xde,
+      0xad,
+      0xbe,
+      0xaf
     },
   };
 
@@ -81,14 +80,16 @@ int main(int argc, char ** argv){
     short Nh = 17; 
     for (short ni = 0; ni < Nh; ni++){
       for (short iy = 0; iy < y; iy++){
-        jp_dest.jp.b.y = htons(iy + offY); 
+        //jp_dest.jp.b.y = htons(iy + offY); 
         for(int ix = ni; ix < x; ix += Nh){
           int index = x * iy + ix;
-          jp_dest.jp.b.x = htons(ix + offX); 
+          // jp_dest.jp.b.x = htons(ix + offX); 
           
 
           // memcpy((void *) &jp_dest.jp.b.r, (void *) imgData, 3); 
-          imgColorData d = imgData[index];
+          //imgColorData d = imgData[index];
+          imgColorData d = imgData[0];
+
           jp_dest.jp.b.r = d.r;
           jp_dest.jp.b.g = d.g;
           jp_dest.jp.b.b = d.b;
