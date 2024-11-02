@@ -24,9 +24,9 @@ typedef struct {
   jpVaL b;
 } jp6_addr;
 
-typedef struct {
+typedef struct __attribute__((packed)) {
   struct icmp6_hdr hdr;
-  char data[8]; 
+  //char data[8]; 
 } icmp_packet;
 
 typedef struct __attribute__((packed)) {

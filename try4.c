@@ -20,7 +20,7 @@
 #define STB_IMAGE_IMPLEMENTATION 
 #include "stb_image.h"
 
-#define BATCH_SIZE 64
+#define BATCH_SIZE 17
 
 // bc:24:11:58:37:25
 void read_completions(struct io_uring * ior){
@@ -70,15 +70,21 @@ int main(int argc, char ** argv){
 	  offY = atoi(argv[4]);
   }
 
-  int x, y, n; 
-  imgColorData * imgData = stbi_load(argv[2], &x, &y, &n, 3); 
+  int iters = -1;
+  if(argc >= 6) {
+    iters = atoi(argv[5]); 
+  }
 
-  if (n != 3) {
+  int x, y, n; 
+  unsigned char * imgData = stbi_load(argv[2], &x, &y, &n, 4);
+
+  if (n < 3) {
     printf("Image has an invalid amount of channels (%d), quitting", n);
     return 1;
   }
 
-  printf("Image: (x: %d ,y: %d)", x ,y);
+
+  printf("Image: (x: %d ,y: %d, n: %d)\n", x ,y, n);
 
 
   int sock_r; 
@@ -135,7 +141,6 @@ int main(int argc, char ** argv){
     0, 
     0,
     },
-    "DEEZNUTS"
   };
 
 // #define DEFAULT_GATEWAY 0x0000990000751C00 
@@ -166,66 +171,47 @@ int main(int argc, char ** argv){
     ip6, 
     icmp
   };
-  printf("%lu, %lu, %lu \n", sizeof(eth), sizeof(ip6), sizeof(icmp));
 
   jp_dest.jp.b.a = 255;
 
-  struct io_uring ior; 
-  int flags = 0 | IORING_SETUP_SUBMIT_ALL | IORING_SETUP_SINGLE_ISSUER | IORING_SETUP_SQPOLL; 
-  int ior_stat = io_uring_queue_init(BATCH_SIZE*2, &ior,flags); 
-  if(ior_stat < 1){
-    perror("io_uring_init");
-  }
-
-  eth_packet packets[BATCH_SIZE * 2];
-  for(int i = 0; i < BATCH_SIZE * 2;  i++){
-    memcpy(packets + i , &pack, sizeof(eth_packet));
-  }
-
-  
-  
-  while(1) {
-    short ix = 0; 
-    short Nh = x/BATCH_SIZE; 
-    short Noff = 0; 
-    for (short iy = 0; iy < y; iy++){
-      jp_dest.jp.b.y = htons(iy + offY); 
-      for(int ix = 0; ix < Nh; ix ++){
-        for(short ni = 0; ni < Nh; ni++){
-          short tx = ni * BATCH_SIZE + ix;  
-          int index = x * iy + tx;
-          jp_dest.jp.b.x = htons(ix * tx + offX); 
-          imgColorData d = imgData[index];
+  while(iters == -1 || iters > 0) {
+    for(short nx = 0; nx < BATCH_SIZE; nx++){
+      for (short iy = 0; iy < y; iy++){
+        jp_dest.jp.b.y = htons(iy + offY); 
+        for(short ix = 0; ix < x; ix += BATCH_SIZE){
+          int index = x * iy + ix + nx;
+          jp_dest.jp.b.x = htons(ix + nx + offX); 
+          uint8_t * d = &imgData[index * n];
           // imgColorData d = imgData[0];
-
-          jp_dest.jp.b.r = d.r;
-          jp_dest.jp.b.g = d.g;
-          jp_dest.jp.b.b = d.b;
-          eth_packet * packet = packets + ni + Noff; 
-          packet->ipv6.ip6_dst = jp_dest.ipv6;
+          if(n == 4) { 
+            if(d[3] < 20) continue;
+            jp_dest.jp.b.a = d[3];
+          } else {
+            jp_dest.jp.b.a = 255;
+          }
+          jp_dest.jp.b.r = d[0];
+          jp_dest.jp.b.g = d[1];
+          jp_dest.jp.b.b = d[2];
+          pack.ipv6.ip6_dst = jp_dest.ipv6;
           // Do the checksum in the separate icmp packet, because of allignment 
           icmp.hdr.icmp6_cksum = 0;
           icmpv6_add_checksum(&icmp, &src_sa.sin6_addr, &jp_dest.ipv6); 
-          packet->icmp.hdr.icmp6_cksum = icmp.hdr.icmp6_cksum;
+          pack.icmp.hdr.icmp6_cksum = icmp.hdr.icmp6_cksum;
           // printf("\rx: %4d y: %4d", ix, iy);
           
-          submit_packet(&ior, sock_r, packet, &eth_addr);
-          // int s = sendto(sock_r, &pack, sizeof(eth_packet), 0,(struct sockaddr *) &eth_addr, sizeof(struct sockaddr_ll));
-          // if(s < 0) {
-          //   perror("sendto");
-          // }
+          int s = sendto(sock_r, &pack, sizeof(eth_packet), 0,(struct sockaddr *) &eth_addr, sizeof(struct sockaddr_ll));
+          if(s < 0) {
+            perror("sendto");
+          }
 
           // DumpHex(&pack, sizeof(pack));
           // DumpHex(&pack.icmp, sizeof(pack.icmp));
           // exit(0);o
         }
-        if(Noff == 0) {
-          Noff = BATCH_SIZE;
-        } else {
-          Noff = 0; 
-        }
-        read_completions(&ior);
-      } 
+      }
+    } 
+    if (iters > 0) {
+      iters --;
     }
   }
-} 
+}
