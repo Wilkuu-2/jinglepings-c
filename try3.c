@@ -48,7 +48,7 @@ int main(int argc, char ** argv){
   struct sockaddr_in6 src_sa = find_own_ipv6addr(argv[1]);
 
   in6_jpaddr jp_dest = {
-    0x00A0081910060120,
+   0x00A017B3B80D0120,
     {
       htons(0xcdab), 
       htons(0x3412), 

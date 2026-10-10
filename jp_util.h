@@ -20,7 +20,7 @@ typedef struct {
 } jpVaL;
 
 typedef struct {
-  uint64_t a; 
+  unsigned char a[8]; 
   jpVaL b;
 } jp6_addr;
 

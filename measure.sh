@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 time="1"     # one second
 int=$1   # network interface

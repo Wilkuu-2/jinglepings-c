@@ -3,19 +3,18 @@
 #include "netinet/in.h"
 #include <bits/types/sigset_t.h>
 #include <stdint.h>
-#include <liburing/io_uring.h>
 #include <linux/if_ether.h>
 #include <net/ethernet.h>
 #include <netinet/ip6.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <liburing.h>
 #include <net/if.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if_packet.h>
 #include <stdlib.h>
+ #include <unistd.h>
 
 #define STB_IMAGE_IMPLEMENTATION 
 #include "stb_image.h"
@@ -23,33 +22,6 @@
 #define BATCH_SIZE 17
 
 // bc:24:11:58:37:25
-void read_completions(struct io_uring * ior){
-  struct io_uring_cqe *cqe; 
-  
-  sigset_t s = {}; 
-  io_uring_enter(ior->ring_fd, BATCH_SIZE, BATCH_SIZE, 0, &s);
-  int to_collect = io_uring_cq_ready(ior);
-  //int to_collect = BATCH_SIZE;
-  for(int i = 0; i < to_collect; i ++){
-    io_uring_wait_cqe(ior,&cqe);
-    if (cqe->res < 0) {
-      printf("Error in sending\n");
-    } 
-  }
-}
-
-void submit_packet(struct io_uring * restrict ior,int socket, eth_packet * restrict packet, struct sockaddr_ll * restrict dest ){
-  struct io_uring_sqe * sqe = NULL; 
-  eth_packet e; 
-  memcpy(&e,packet,sizeof(eth_packet));
-  do {
-    sqe = io_uring_get_sqe(ior); 
-  } while (sqe == NULL);
-
-  io_uring_prep_sendto(sqe, socket, packet, sizeof(eth_packet), 0,(struct sockaddr *) dest, sizeof(struct sockaddr_ll));
-  io_uring_submit(ior);
-}
-
 
 int main(int argc, char ** argv){
   if(argc < 2) {
@@ -111,7 +83,8 @@ int main(int argc, char ** argv){
   }
 
 
-  uint8_t dest_mac[ETH_ALEN] = {0x00, 0x1C, 0x73, 0x00, 0x00, 0x99};
+  // uint8_t dest_mac[ETH_ALEN] = {0x00, 0x1C, 0x73, 0x00, 0x00, 0x99};
+  uint8_t dest_mac[ETH_ALEN] = {0x04,0xf4,0x1c,0x39, 0xc2, 0xe1};
   struct sockaddr_ll eth_addr; 
   memcpy(eth_addr.sll_addr, dest_mac, ETH_ALEN);
   eth_addr.sll_halen = ETH_ALEN; 
@@ -120,18 +93,11 @@ int main(int argc, char ** argv){
 
   struct sockaddr_in6 src_sa = find_own_ipv6addr(argv[1]);
 
+  unsigned char pref[8] = {0x20, 0x01, 0x06, 0x10, 0x05, 0xea, 0x22, 0x1e};
+  in6_jpaddr jp_dest = {0};
+  memcpy(&(jp_dest.jp.a), pref, 8);
 
-  in6_jpaddr jp_dest = {
-    0x00A0081910060120,
-    {
-      htons(0xcdab), 
-      htons(0x3412), 
-      0xde,
-      0xad,
-      0xbe,
-      0xaf
-    },
-  };
+  
 
   struct sockaddr_in6 out_sa; 
   out_sa.sin6_family = src_sa.sin6_family;
@@ -174,6 +140,7 @@ int main(int argc, char ** argv){
 
   jp_dest.jp.b.a = 255;
 
+  printf("test %d---\n", iters);
   while(iters == -1 || iters > 0) {
     for(short nx = 0; nx < BATCH_SIZE; nx++){
       for (short iy = 0; iy < y; iy++){
@@ -197,16 +164,19 @@ int main(int argc, char ** argv){
           icmp.hdr.icmp6_cksum = 0;
           icmpv6_add_checksum(&icmp, &src_sa.sin6_addr, &jp_dest.ipv6); 
           pack.icmp.hdr.icmp6_cksum = icmp.hdr.icmp6_cksum;
-          // printf("\rx: %4d y: %4d", ix, iy);
+
+           printf("\rx: %4d y: %4d", ix, iy);
           
-          int s = sendto(sock_r, &pack, sizeof(eth_packet), 0,(struct sockaddr *) &eth_addr, sizeof(struct sockaddr_ll));
+           int s = sendto(sock_r, &pack, sizeof(eth_packet), 0,(struct sockaddr *) &eth_addr, sizeof(struct sockaddr_ll));
           if(s < 0) {
-            perror("sendto");
-          }
+             perror("sendto");
+           }
+          //usleep(20);
 
           // DumpHex(&pack, sizeof(pack));
           // DumpHex(&pack.icmp, sizeof(pack.icmp));
-          // exit(0);o
+          // printf("Size of packet: %lu\n", sizeof(pack));
+          // exit(0);
         }
       }
     } 
